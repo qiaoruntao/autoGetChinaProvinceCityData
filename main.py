@@ -1,126 +1,125 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
- 
-'''抓取国家统计局网站上最新的县及县以上行政区划代码，并保存成 json 格式的js文件(供前端用)和SQL语句(供后端用)
-by Conanca
-'''
- 
-import urllib2,json
- 
-url_prefix = 'http://www.stats.gov.cn/tjbz/xzqhdm/'
- 
-var_text = 'xzqh'
-code_text = 'C'
-name_text = 'N'
-sub_text = 'S'
-jsfile_path = 'xzqh.js'
-sqlfile_path = 'xzqh.sql'
- 
-def set_proxy(proxy):
-	''' 设置代理服务器 '''
-	urllib2.install_opener(urllib2.build_opener(urllib2.ProxyHandler({'http' : proxy})))
- 
-def get_latest_page():
-	''' 获取最新的行政区划代码公布页 '''
-	return "http://www.stats.gov.cn/tjsj/tjbz/xzqhdm/201504/t20150415_712722.html"
-	content = urllib2.urlopen(url_prefix + 'index.htm').read()
-	index_start = content.find("<td width='76%' height='20' valign='middle'><a href='") + 53
-	index_end = content.find("' target='_blank'  class='a2'>")
-	xzqhdm_url = content[index_start:index_end]
-	xzqhdm_url = url_prefix + xzqhdm_url
-	print 'latest page:' + xzqhdm_url
-	return xzqhdm_url
- 
-def crawl_page(xzqhdm_url):
-	''' 爬行政区划代码公布页 '''
-	print 'crawling...'
-	content = urllib2.urlopen(xzqhdm_url).read()
-	index_start = content.find('<TBODY>') + 9
-	index_end = content.find("</TBODY></TABLE>")
-	content = content[index_start:index_end]
-	return content
- 
-def creat_item(item_str):
-	''' 根据字符串创建条目对象 '''
-	code = item_str[item_str.index('lang=EN-US>') + 11:item_str.index('<o:p></o:p></SPAN></P></TD>')]
-	name = item_str[item_str.index('''mso-bidi-font-family: Tahoma">''') + 30:]
-	item = {code_text:code,name_text:name}
-	#print item
-	return item
- 
-def convert(content):
-	''' 将爬到的内容转换为行政区划 list '''
-	print 'converting...'
-	item_arr = content.split('<SPAN lang=EN-US><o:p></o:p></SPAN></SPAN></P></TD></TR>')
-	p_list = []
-	current_p = {}
-	current_p_sub = []
-	current_c = {}
-	current_c_sub = []
-	current_d = {}
-	for item_str in item_arr:
-		#print item_str
-		if item_str.find('TEXT-ALIGN: left; MARGIN: 0cm 0cm 0pt; mso-pagination: widow-orphan')>=0:
-			print 'got a province:'#+item_str
-			# 赋值 当前省;初始化 当前省的子项
-			current_p = creat_item(item_str)
-			current_p_sub = []
-			if len(current_p)!=0:
-				# 为当前省 设置其子项;省列表中添加当前省
-				current_p[sub_text] = current_p_sub
-				p_list.append(current_p)
-		elif item_str.find('TEXT-INDENT: 12pt;')>=0:
-			print '********got a city:'#+item_str
-			# 赋值 当前市;初始化 当前市的子项
-			current_c = creat_item(item_str)
-			current_c_sub = []
-			if len(current_c)!=0:
-				# 为当前市 设置其子项;当前省的子项中添加当前市
-				current_c[sub_text] = current_c_sub
-				current_p_sub.append(current_c)
-		elif (item_str.find('TEXT-INDENT: 24pt;')>=0 or item_str.find('TEXT-ALIGN: left; MARGIN: 0cm 0cm 0pt 23.95pt;')>=0):
-			print '****************got a district:'#+item_str
-			# 赋值 当前区县;当前市的子项中添加当前区县
-			current_d = creat_item(item_str)
-			current_c_sub.append(current_d)
-		else :
-			print 'invaild item string:'+item_str
-	return p_list
-def toResult(p_list):
-	''' 将行政区划列表转换为SQL语句 '''
-	provinceData="var provinces=[";
-	for p in p_list:
-		provinceData+="'"+p[name_text]+"',"
-		#sql += "('"+p[code_text]+"','"+p[name_text]+"',NULL,'p'),\n"
-		cityData="citiesV['"+p[name_text]+"']=[";
-		for c in p[sub_text]:
-			cityData+="'"+c[name_text]+"',"
-			#sql += "('"+c[code_text]+"','"+c[name_text]+"','"+p[code_text]+"','c'),\n"
-			townData="townsV['"+c[name_text]+"']=["
-			for d in c[sub_text]:
-				townData+="'"+d[name_text]+"',"
-				#sql += "('"+d[code_text]+"','"+d[name_text]+"','"+c[code_text]+"','d'),\n"
-			townData+="];\n"
-			#print townData
-		cityData+="];\n"
-		#print cityData
-	provinceData+="];\n"
-	#print provinceData;
-	#return sql[:-2]+";" 
-def write_to(content,file_path):
-	''' 将字符串写入指定的文件中 '''
-	print 'writing...'
-	f = open(file_path, 'w')
-	f.write(content)
-	f.close()
-	print 'done!'
-if __name__ == '__main__':
-	#set_proxy('http://192.168.2.59:8080')
-	url = get_latest_page()
-	content = crawl_page(url)
-	p_list = convert(content)
-	toResult(p_list)
-	#content = 'var ' + var_text + ' = ' + json.dumps(p_list,ensure_ascii=False,separators=(',',':')).decode('gb18030').encode('utf-8')
-	#write_to(content,jsfile_path)
-	#write_to(content,"./result.txt")
-	print 'finish!'
+# -*- coding: utf-8 -*-  
+import urllib2
+import urllib
+import bs4
+import re
+import uniout
+from pprint import pprint
+import json
+
+
+def getPageUrl():
+	#return "http://www.stats.gov.cn/tjsj/tjbz/xzqhdm/201504/t20150415_712722.html"
+	user_agent = 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT)'
+	headers = { 'User-Agent' : user_agent }
+	values = {'name':'Michael Foord',
+	          'location':'Northampton',
+	          'language':'Python' }
+	pageUrl="http://www.stats.gov.cn/tjsj/tjbz/xzqhdm/";
+	data = urllib.urlencode(values)
+	req = urllib2.Request(pageUrl, data, headers)
+	response = urllib2.urlopen(req)
+	soup = bs4.BeautifulSoup(response.read(), "html.parser")
+	#pprint(soup.get_text()), text=re.compile(u"最新县及县以上行政区划代码")
+	targetUl=soup.find_all(class_='center_list_contlist')
+	#print targetUl
+	aArray=targetUl[0].find_all('a')
+	#print aArray
+	resultUrl=pageUrl+aArray[0].get('href')[2:]
+	return resultUrl
+	#return [a.attrs.get('href') for a in soup.select('div.video-summary-data a[href^=/video]')]
+	#return
+def getRawData(pageUrl):
+	response = urllib2.urlopen(pageUrl)
+	soup = bs4.BeautifulSoup(response.read(), "html.parser")
+	pairedData=soup.find_all('p', class_='MsoNormal')
+	rawData=[]
+	pattern = re.compile(r'([\d]+)[\s]+([\S]+)')
+	for pair in pairedData:
+		rawText=pair.text
+		rawText=rawText.replace(u'\u3000', u'')
+		rawText=rawText.replace(u'\u00A0', u'')
+		match = pattern.match(rawText)
+		if match==0:
+			print "error: cannot recognize data="+rawText
+			continue
+		print "0="+match.group(1)+",1="+match.group(2)
+		rawData.append([match.group(1), match.group(2)])
+	return rawData
+def formatData(rawData):
+	provinceData=[]
+	citiesData={}
+	townsData={}
+	provincePattern = re.compile(r'([\d]{2})0000')
+	cityPattern = re.compile(r'([\d]{4})00')
+	currentProvince=""
+	currentCity=""
+	isTownToCity=0
+	tempCitiesArray=[]
+	tempTownsArray=[]
+	for pairRawData in rawData:
+		provinceMatch=provincePattern.match(pairRawData[0])
+		if provinceMatch:
+			#处理省一级单位
+			print "find province, first two code="+provinceMatch.group(1)
+			isTownToCity=0#更换省一级单位, 重新检查是否为直辖市等情况
+			if tempCitiesArray:
+				#数组不为空, 推入之前的城市数据
+				print "push cities, province=",
+				pprint(currentProvince),
+				print ", array=",
+				pprint(tempCitiesArray)
+				citiesData[currentProvince]=tempCitiesArray
+				tempCitiesArray=[]
+			#推入这个省级单位数据
+			provinceData.append(pairRawData[1])
+			currentProvince=pairRawData[1]
+			continue
+		cityMatch=cityPattern.match(pairRawData[0])
+		if cityMatch:
+			if pairRawData[1]!=u"市辖区" and pairRawData[1]!=u"县" and pairRawData[1]!=u"自治区直辖县级行政区划" and pairRawData[1]!=u"省直辖县级行政区划":
+				#处理市一级单位
+				print "find city, first four code="+cityMatch.group(1)+",name="+pairRawData[1]
+				if tempTownsArray:
+					#之前有县级数据
+					townsData[currentCity]=tempTownsArray
+					tempTownsArray=[]
+				#推入该城市的数据
+				tempCitiesArray.append(pairRawData[1])
+				currentCity=pairRawData[1]
+			else:
+				#是直辖市等情况, 将县一级单位提升为市一级
+				print "province "+currentProvince+" is zhixiashi"
+				isTownToCity=1
+			continue
+		#此时剩下的只有县级单位了
+		if isTownToCity:
+			#县级单位转市级单位
+			print "find town to city case, name="+pairRawData[1]
+			tempCitiesArray.append(pairRawData[1])
+			currentCity=pairRawData[1]
+			continue
+		elif pairRawData[1]!=u"市辖区":
+			#其他县级单位
+			tempTownsArray.append(pairRawData[1])
+	print "provinceData="
+	pprint(provinceData)
+	print "citiesData="
+	pprint(citiesData)
+	# print "townsData="
+	# pprint(townsData)
+	coutAsJs(provinceData, citiesData, townsData)
+def coutAsJs(provinceData, citiesData, townsData):
+	resultStr="var provinces=["
+	for province in provinceData:
+		resultStr+="'"+province+"',"
+	resultStr+="];\n"
+	resultStr+="var citiesV={};\n"
+	for provinceName, cityArray in citiesData.items():
+		resultStr+="citiesV['"+provinceName+"']=["
+		for cityName in cityArray:
+			resultStr+="'"+cityName+"',"
+		resultStr+='];\n'
+	pprint(resultStr)
+formatData(getRawData(getPageUrl()))
+#print getPageUrl()
